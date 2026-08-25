@@ -107,7 +107,7 @@ def cancel_option(order_id, is_force_cancel=True):
 
 
 if __name__ == "__main__":
-    create_option_buy()
+    # create_option_buy()
     # create_option_short()
-    # replace_option(1600243028902756352, entrust_price=1.8, entrust_qty=2)
+    replace_option(1609638646588493824, entrust_price=1.8, entrust_qty=14)
     # cancel_option(1600243028902756352)

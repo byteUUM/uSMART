@@ -110,6 +110,6 @@ def cancel_stock(order_id, is_force_cancel=True):
 if __name__ == "__main__":
     # 按需取消注释运行
     # create_stock_buy()
-    create_stock_short()
-    # replace_stock(1603186926469918720, entrust_price="1.2", entrust_qty=20)
+    # create_stock_short()
+    replace_stock(1609709984697548800, entrust_price="1.2", entrust_qty=26)
     # cancel_stock("16005909214509793282")

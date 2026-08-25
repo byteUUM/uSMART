@@ -109,5 +109,5 @@ def cancel_cfd1(order_id, is_force_cancel=True, fund_account=FUND_ACCOUNT):
 if __name__ == "__main__":
     # create_cfd1_buy()
     # create_cfd1_sell()
-    replace_cfd1(1609632642245185536, entrust_price=1.09000, entrust_qty=6000)
+    replace_cfd1(1609716092329787392, entrust_price=1.09000, entrust_qty=4000)
     # cancel_cfd1(1609250095258451968)

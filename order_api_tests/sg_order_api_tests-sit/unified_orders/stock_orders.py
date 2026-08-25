@@ -112,5 +112,5 @@ if __name__ == "__main__":
     # 按需取消注释运行
     # create_stock_buy()
     # create_stock_short()
-    replace_stock(1609442206146744320, entrust_price="110", entrust_qty=20)
+    replace_stock(1609633428018679808, entrust_price="110", entrust_qty=30)
     # cancel_stock("16005909214509793282")

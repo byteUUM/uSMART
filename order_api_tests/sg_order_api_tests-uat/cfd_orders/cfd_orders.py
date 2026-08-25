@@ -25,7 +25,7 @@ MARKET = "CUS"                        # 市场(CFD1 / CUS 二选一)
 SYMBOL = "AAPL"                       # 货币对/标的
 ENTRUST_WAY = "NET"
 ENTRUST_PROP = "LMT"                  # LMT/ELMT/MKT/AM/AL
-ENTRUST_PRICE = 316.18                # 价格(市价单传 0)
+ENTRUST_PRICE = 310.4               # 价格(市价单传 0)
 ENTRUST_QTY = 12
 ORDER_TYPE = "GTD"                    # Time-in-force: GE / GTD / GTC
 VALID_DATE = "2026-10-09"             # GTD 订单有效期(GMT), 格式 yyyy-MM-dd
@@ -103,5 +103,5 @@ def cancel_cfd(order_id, is_force_cancel=True, fund_account=FUND_ACCOUNT):
 if __name__ == "__main__":
     create_cfd_buy()
     # create_cfd_sell()
-    # replace_cfd(1603193623347343360, entrust_price=200.0, entrust_qty=10)
+    # replace_cfd(1609663745134166016, entrust_price=200.0, entrust_qty=11)
     # cancel_cfd(1603193623347343360)
