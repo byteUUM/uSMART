@@ -91,8 +91,11 @@ NOT_SHORTABLE_STOCK = {"symbol": "TSLA", "market": "US", "currency": "USD", "han
 
 # --- 期权 ---
 # 期权代码格式: 标的 + 到期日(YYMMDD) + C/P + 行权价×1000(6位)
-# 例: QQQ 到期 2026-08-19, Call, 行权价 717 -> QQQ260819C717000
-OPTION_SYMBOL = "QQQ260819C717000"    # 单腿期权用例(已验证有行情)
+# 例: QQQ 到期 2026-09-18, Call, 行权价 717 -> QQQ260918C717000
+# ★注意期权会到期: 原用的 QQQ260819 系列已于 2026-08-19 到期, 全部返回
+#   400064「期权代码不存在」, 会让组合类用例整片失败(消耗购买力出现负数/波动)。
+#   到期后换更远月份即可, 已验证可用: QQQ260918 / QQQ261016 / QQQ261120 各行权价。
+OPTION_SYMBOL = "QQQ260918C717000"    # 单腿期权用例(已验证有行情)
 OPTION_MARKET = "US"
 OPTION_MULTIPLIER = 100               # 期权乘数
 
@@ -110,32 +113,32 @@ COMBO_STRATEGIES = {
     "牛市价差": {
         "comboStrategy": "VERTICAL_CALL",
         "comboLegs": [
-            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260819C715000"},
-            {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260819C725000"},
+            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260918C715000"},
+            {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260918C725000"},
         ],
     },
     # 熊市价差(Bear Put Spread): 买高行权价 Put + 卖低行权价 Put
     "熊市价差": {
         "comboStrategy": "VERTICAL_PUT",
         "comboLegs": [
-            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260819P725000"},
-            {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260819P715000"},
+            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260918P725000"},
+            {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260918P715000"},
         ],
     },
     # 跨式(Straddle): 同行权价 买 Call + 买 Put
     "跨式": {
         "comboStrategy": "STRADDLE",
         "comboLegs": [
-            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260819C717000"},
-            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260819P717000"},
+            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260918C717000"},
+            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260918P717000"},
         ],
     },
     # 宽跨式(Strangle): 不同行权价 买 Put + 买 Call
     "宽跨式": {
         "comboStrategy": "STRANGLE",
         "comboLegs": [
-            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260819P716000"},
-            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260819C726000"},
+            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260918P716000"},
+            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260918C726000"},
         ],
     },
     # 备兑(Covered Call): 买股票 + 卖 Call
@@ -143,7 +146,7 @@ COMBO_STRATEGIES = {
         "comboStrategy": "COVERED_CALL",
         "comboLegs": [
             {"businessType": "S", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ"},
-            {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260819C717000"},
+            {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260918C717000"},
         ],
     },
     # 领式(Collar): 买股票 + 买 Put + 卖 Call
@@ -151,8 +154,8 @@ COMBO_STRATEGIES = {
         "comboStrategy": "COLLAR",
         "comboLegs": [
             {"businessType": "S", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ"},
-            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260819P715000"},
-            {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260819C725000"},
+            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260918P715000"},
+            {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260918C725000"},
         ],
     },
 }
@@ -164,21 +167,30 @@ COMBO_LEGS_DIFF_UNDERLYING = [
 ]
 # 多腿共享同一标的(QUO-02): 都是 QQQ
 COMBO_LEGS_SAME_UNDERLYING = COMBO_STRATEGIES["牛市价差"]["comboLegs"]
-# 行情缺失的腿(QUO-03): UTL 在 SIT 无行情
+# 行情缺失的腿(QUO-03): UTL 无行情(已到期/不存在的代码同样返回 400064)
 COMBO_LEGS_NO_QUOTE = [
-    {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260819C717000"},
+    {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260918C717000"},
     {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "UTL260918C50000"},
 ]
 # 多条 SHORT 腿(PRV-02)
 COMBO_LEGS_MULTI_SHORT = [
-    {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260819C715000"},
-    {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260819C725000"},
-    {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260819P717000"},
+    {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260918C715000"},
+    {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260918C725000"},
+    {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260918P717000"},
 ]
 
 # --- 已存在的订单 ID(改单类用例需要, 跑之前先下单拿到) ---
 # 注意: 改单接口的账号是由 orderId 推出来的, 所以订单ID 必须属于你想测的那个账号。
-STOCK_ORDER_ID = 1608223107248807936          # 股票(账号 80125375) 已验证 code:0
+#
+# ★★ 委托属性会直接影响用例结论 ★★
+#   order_api_tests 的下单脚本默认 ENTRUST_PROP="MKT"(市价单, ENTRUST_PRICE="0")。
+#   市价单没有委托价, 接口只能按标的市价算最大可买 —— 此时传任何 entrustPrice 结果都不变,
+#   这是正确行为, 不能当成「入参不生效」的缺陷。
+#   要验证「委托价影响最大可买」, 必须用 ENTRUST_PROP="LMT" 的限价单
+#   (已用 APP 抓包的限价单 1610005879714152448 验证: 委托价 10.77 时
+#    maxBuyQty=925688 = 融资购买力/委托价 - 费用, 委托价确实参与计算)。
+STOCK_LIMIT_ORDER_ID = 1610005879714152448    # 股票限价单(LMT), 验证委托价敏感性用
+STOCK_ORDER_ID = 0                            # TODO 原 1608223107248807936 已不在途(100080)
 OPTION_SHORT_ORDER_ID = 1608213092622376961   # 期权沽空 已验证 code:0
 COMBO_ORDER_ID = 1608200135293247489          # 组合期权(账号 80125375) 已验证 code:0
 # 股票沽空: 下面这笔属于账号 80001404, 与当前 token 用户不符, 调用会返回

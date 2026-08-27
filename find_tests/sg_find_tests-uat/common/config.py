@@ -2,7 +2,7 @@
 公共配置模块（最大可买可卖 / 购买力查询 接口测试）
 ====================================================
 对应文档: find_tests/explain.md
-环境    : SIT
+环境    : UAT(优化前版本, 作为取数一致性比对的基线环境)
 
 配置分五层:
   1. 环境 & 鉴权   —— BASE_URL / AUTHORIZATION / 公共请求头
@@ -14,8 +14,7 @@
 import os
 
 # ============================ 1. 环境 & 鉴权 ============================
-# SIT 测试环境地址
-#BASE_URL = "https://usmartclient-sit.usmartsg.com"
+# UAT 环境地址(优化前版本, 用作基线)
 BASE_URL = "https://jy-uat.usmartsg.com"
 # 登录 TOKEN(Authorization)。过期后只需在这里替换一次，全部脚本生效。
 AUTHORIZATION = (
@@ -35,14 +34,15 @@ COMMON_HEADERS = {
 
 
 # ============================ 2. 资金账号 ============================
-# 来源: find_tests/data.txt
-CASH_ACCOUNT = "80019812"        # 现金账户
-MARGIN_ACCOUNT = "80019812"      # 融资账户
-PRO_ACCOUNT = ""         # 专业/高级账户
-FROZEN_ACCOUNT = ""      # 冻结账户
+# 来源: order_api_tests/sg_order_api_tests-uat/common/config.py
+CASH_ACCOUNT = "80019812"        # 默认账号(股票/期权/组合/碎股共用)
+MARGIN_ACCOUNT = ""             # TODO 融资账户(需与现金账户不同的号)
+PRO_ACCOUNT = ""                # TODO 专业/高级账户
+FROZEN_ACCOUNT = ""             # TODO 冻结账户
+SHORT_ACCOUNT = "80019713"      # 股票沽空专用账号(有沽空权限)
 
-# 当前 AUTHORIZATION 这个 token 实际归属的资金账号(实测 code:0 且数据自洽)
-TOKEN_FUND_ACCOUNT = ""
+# 当前 AUTHORIZATION 这个 token 实际归属的资金账号(已实测 code:0 且数据自洽)
+TOKEN_FUND_ACCOUNT = "80019812"
 
 # 默认资金账号(大部分用例使用)。用 token 归属账号，避免 token 与账号不匹配。
 DEFAULT_FUND_ACCOUNT = TOKEN_FUND_ACCOUNT
@@ -91,8 +91,8 @@ NOT_SHORTABLE_STOCK = {"symbol": "TSLA", "market": "US", "currency": "USD", "han
 
 # --- 期权 ---
 # 期权代码格式: 标的 + 到期日(YYMMDD) + C/P + 行权价×1000(6位)
-# 例: QQQ 到期 2026-08-19, Call, 行权价 717 -> QQQ260819C717000
-OPTION_SYMBOL = "QQQ260819C717000"    # 单腿期权用例(已验证有行情)
+# 例: QQQ 到期 2026-08-19, Call, 行权价 717 -> QQQ260918C717000
+OPTION_SYMBOL = "QQQ260918C717000"    # 单腿期权用例(已验证有行情)
 OPTION_MARKET = "US"
 OPTION_MULTIPLIER = 100               # 期权乘数
 
@@ -110,32 +110,32 @@ COMBO_STRATEGIES = {
     "牛市价差": {
         "comboStrategy": "VERTICAL_CALL",
         "comboLegs": [
-            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260819C715000"},
-            {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260819C725000"},
+            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260918C715000"},
+            {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260918C725000"},
         ],
     },
     # 熊市价差(Bear Put Spread): 买高行权价 Put + 卖低行权价 Put
     "熊市价差": {
         "comboStrategy": "VERTICAL_PUT",
         "comboLegs": [
-            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260819P725000"},
-            {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260819P715000"},
+            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260918P725000"},
+            {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260918P715000"},
         ],
     },
     # 跨式(Straddle): 同行权价 买 Call + 买 Put
     "跨式": {
         "comboStrategy": "STRADDLE",
         "comboLegs": [
-            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260819C717000"},
-            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260819P717000"},
+            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260918C717000"},
+            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260918P717000"},
         ],
     },
     # 宽跨式(Strangle): 不同行权价 买 Put + 买 Call
     "宽跨式": {
         "comboStrategy": "STRANGLE",
         "comboLegs": [
-            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260819P716000"},
-            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260819C726000"},
+            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260918P716000"},
+            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260918C726000"},
         ],
     },
     # 备兑(Covered Call): 买股票 + 卖 Call
@@ -143,7 +143,7 @@ COMBO_STRATEGIES = {
         "comboStrategy": "COVERED_CALL",
         "comboLegs": [
             {"businessType": "S", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ"},
-            {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260819C717000"},
+            {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260918C717000"},
         ],
     },
     # 领式(Collar): 买股票 + 买 Put + 卖 Call
@@ -151,8 +151,8 @@ COMBO_STRATEGIES = {
         "comboStrategy": "COLLAR",
         "comboLegs": [
             {"businessType": "S", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ"},
-            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260819P715000"},
-            {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260819C725000"},
+            {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260918P715000"},
+            {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260918C725000"},
         ],
     },
 }
@@ -166,24 +166,33 @@ COMBO_LEGS_DIFF_UNDERLYING = [
 COMBO_LEGS_SAME_UNDERLYING = COMBO_STRATEGIES["牛市价差"]["comboLegs"]
 # 行情缺失的腿(QUO-03): UTL 在 SIT 无行情
 COMBO_LEGS_NO_QUOTE = [
-    {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260819C717000"},
+    {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260918C717000"},
     {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "UTL260918C50000"},
 ]
 # 多条 SHORT 腿(PRV-02)
 COMBO_LEGS_MULTI_SHORT = [
-    {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260819C715000"},
-    {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260819C725000"},
-    {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260819P717000"},
+    {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260918C715000"},
+    {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260918C725000"},
+    {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260918P717000"},
 ]
 
 # --- 已存在的订单 ID(改单类用例需要, 跑之前先下单拿到) ---
 # 注意: 改单接口的账号是由 orderId 推出来的, 所以订单ID 必须属于你想测的那个账号。
-STOCK_ORDER_ID = 1608223107248807936          # 股票(账号 80125375) 已验证 code:0
-OPTION_SHORT_ORDER_ID = 1608213092622376961   # 期权沽空 已验证 code:0
-COMBO_ORDER_ID = 1608200135293247489          # 组合期权(账号 80125375) 已验证 code:0
-# 股票沽空: 下面这笔属于账号 80001404, 与当前 token 用户不符, 调用会返回
-# 450004「客户信息认证失败」。需要换成当前 token 用户自己的沽空在途单。
-SHORT_ORDER_ID = 0                            # TODO 1608217159184670721(账号80001404, 归属不符)
+#
+# ★★ 委托属性会直接影响用例结论 ★★
+#   order_api_tests 的下单脚本默认 ENTRUST_PROP="MKT"(市价单, ENTRUST_PRICE="0")。
+#   市价单没有委托价, 接口只能按标的市价算最大可买 —— 此时传任何 entrustPrice 结果都不变,
+#   这是正确行为, 不能当成「入参不生效」的缺陷。
+#   要验证「委托价影响最大可买」, 必须用 ENTRUST_PROP="LMT" 的限价单。
+STOCK_ORDER_ID = 1609761017595428864          # 股票 已验证 code:0 (AAPL 市价单 MKT)
+OPTION_SHORT_ORDER_ID = 1609764032108822528   # 期权沽空 已验证 code:0
+# 组合期权: 待补。之前给的 1609764032108822528 实测是期权沽空单
+# (按组合调返回 450003 参数不合法 error="Source must not be null")。
+COMBO_ORDER_ID = 0                            # TODO 填入 UAT 真正的组合期权在途单
+SHORT_ORDER_ID = 0                            # TODO 填入账号 80019713 的股票沽空在途单
+# 限价单(验证 entrustPrice 敏感性专用), 两类各留一个位置
+STOCK_LIMIT_ORDER_ID = 0                      # TODO 填入股票限价在途单(LMT)
+COMBO_LIMIT_ORDER_ID = 0                      # TODO 填入组合期权限价在途单
 
 
 # ============================ 4. 接口路径 ============================
@@ -322,6 +331,8 @@ ERROR_CODES = {
 
 
 # ============================ 5. Redis / MQ 服务信息 ============================
+# ★下面这套地址与密码是 SIT 的, UAT 是独立部署的另一套, 需要替换后才能跑
+#  缓存(CACHE-01~08)与缓存刷新(RFS-01~06)章节。
 # Redis 集群(用户信息缓存所在, 3.5 / 3.6 使用)
 REDIS_NODES = [
     ("10.60.6.164", 6383),
