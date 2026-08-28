@@ -2,7 +2,7 @@
 公共配置模块（最大可买可卖 / 购买力查询 接口测试）
 ====================================================
 对应文档: find_tests/explain.md
-环境    : UAT(优化前版本, 作为取数一致性比对的基线环境)
+环境    : UAT
 
 配置分五层:
   1. 环境 & 鉴权   —— BASE_URL / AUTHORIZATION / 公共请求头
@@ -14,9 +14,9 @@
 import os
 
 # ============================ 1. 环境 & 鉴权 ============================
-# UAT 环境地址(优化前版本, 用作基线)
+# UAT 环境地址
 BASE_URL = "https://jy-uat.usmartsg.com"
-# 登录 TOKEN(Authorization)。过期后只需在这里替换一次，全部脚本生效。
+# 登录 TOKEN(Authorization)。过期后在此处替换一次即可, 全部脚本生效。
 AUTHORIZATION = (
     "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHQiOiJNVGM1TURJME1UYzRPREE1T1EiLCJsb2dpblR5cGUiOiJOT1JNQUwiLCJzZXNzaW9uIjoiYzc1OTMxZWQzNTM2NGJlZDk1NmRiNjk4NmYxYTY3ZDciLCJleHRyYSI6IllJbWFlYXhCVlVRQmhydlN0QmJ1aWJzUFAwSFRZME0vanlGTmFqbnhvenR2Y3Z0czd2QlhYUjd3U0ZLR2JKdWZ0emhiQ1djakZNK2NmMEtyaDQwcG1TTnlBZmM1a05maXlYMHBqRVN0QVF0ZjhCYkVrczA1WCtqcy9EMlZGME5xaFEyYi96TzFuYlcwTVhRQ2oraFMwNFVDcU9GNzQ0TEdibnhZZVZkV1I1K2NPTVVFKzhYLzhZMzlXeHovcWJENUVmND0iLCJzb3VyY2UiOiJhcHAiLCJ1dWlkIjoxMjg5Njc4MTM3MTA1MzY3MDQwLCJjbGllbnRfaWQiOiI4MzczMTc0OSJ9.QC29hNcRToaWkTFX7SWSXryEL9_LMUsSxom8tSuPV6I"
 )
@@ -35,45 +35,39 @@ COMMON_HEADERS = {
 
 # ============================ 2. 资金账号 ============================
 # 来源: order_api_tests/sg_order_api_tests-uat/common/config.py
-CASH_ACCOUNT = "80019812"        # 默认账号(股票/期权/组合/碎股共用)
-MARGIN_ACCOUNT = ""             # TODO 融资账户(需与现金账户不同的号)
-PRO_ACCOUNT = ""                # TODO 专业/高级账户
-FROZEN_ACCOUNT = ""             # TODO 冻结账户
-SHORT_ACCOUNT = "80019713"      # 股票沽空专用账号(有沽空权限)
+CASH_ACCOUNT = "80019812"        # 默认账号, 股票/期权/组合/碎股共用
+MARGIN_ACCOUNT = ""              # 待补: 融资账户
+PRO_ACCOUNT = ""                 # 待补: 专业/高级账户
+FROZEN_ACCOUNT = ""              # 待补: 冻结账户
+SHORT_ACCOUNT = "80019713"       # 股票沽空专用账号
 
-# 当前 AUTHORIZATION 这个 token 实际归属的资金账号(已实测 code:0 且数据自洽)
+# 当前 AUTHORIZATION 归属的资金账号
 TOKEN_FUND_ACCOUNT = "80019812"
 
-# 默认资金账号(大部分用例使用)。用 token 归属账号，避免 token 与账号不匹配。
+# 默认资金账号。取 token 归属账号, 避免 token 与账号不匹配。
 DEFAULT_FUND_ACCOUNT = TOKEN_FUND_ACCOUNT
 
 # 账户类型: 1-普通账户, 2-高级账户
 ACCOUNT_TYPE = 1
 
-# ★实测重要结论(2026-08)：
-# 1) 改单类接口(stock-order-replace-max / short-order-replace-max)**不读 body 里的
-#    fundAccount** —— 把 fundAccount 换成 10002178/80125438/80009415/90000037 这 4 个完全
-#    不同的账号，返回的 cashBalance / maxBuyQty 一模一样。账号是由 orderId + token 推出来的。
-#    => 想验证不同账户类型(CASH/MARGIN/pro/冻结)，**必须用该账号自己的 token + 自己的订单ID**，
-#       只改 fundAccount 是无效的(会得到假的"通过")。
-#    => 这直接影响 RFS-01(升融资) / RFS-06(降级) / CBO-08(冻结账户) 的做法。
-# 2) token 与 fundAccount 不属于同一用户时，可能返回 110002「登录状态已失效, 请重新登录」，
-#    这不是 token 过期，而是账号与 token 不匹配。
+# 账号来源说明:
+#   /api/... 路由按 token 用户取资金账号, 请求体中的 fundAccount 不用于切换账号;
+#   改单类接口的账号由 orderId 推导。
+#   因此验证不同账户类型(现金/融资/专业/冻结)时, 必须使用该账号自身的 token 与订单,
+#   仅替换 fundAccount 不会生效。这直接影响 RFS-01 / RFS-06 / CBO-08 的执行方式。
+#   token 与 fundAccount 不属于同一用户时会返回 110002, 表示账号与 token 不匹配。
 
-# 各账号对应的登录 token。
-# 说明: /api/... 接口按 token 用户取资金账号(不传 fundAccount)，
-#      切换账号验证时必须换成对应账号的 token，否则查到的还是默认用户。
+# 各账号对应的登录 token, 切换账号验证时使用
 TOKENS = {
     PRO_ACCOUNT: AUTHORIZATION,
-    CASH_ACCOUNT: "",            # TODO 填入现金账户 token
-    MARGIN_ACCOUNT: "",          # TODO 填入融资账户 token
-    FROZEN_ACCOUNT: "",          # TODO 填入冻结账户 token
+    CASH_ACCOUNT: "",            # 待补: 现金账户 token
+    MARGIN_ACCOUNT: "",          # 待补: 融资账户 token
+    FROZEN_ACCOUNT: "",          # 待补: 冻结账户 token
 }
 
-# 无期权沽空权限(OPTION_SHORT)的账号，用于 OPS-03
-# 已实测: 10002178(CASH) 与 80125438(MARGIN) 均返回 400505「无对应交易权限」
+# 无期权沽空权限的账号, 用于 OPS-03(预期返回 400505 无对应交易权限)
 NO_OPTION_SHORT_ACCOUNT = CASH_ACCOUNT
-# 不存在的资金账号，用于 OPS-04 (实测返回 400092「资金账号不正确！」)
+# 不存在的资金账号, 用于 OPS-04(预期返回 400092 资金账号不正确)
 NOT_EXIST_FUND_ACCOUNT = "99999999"
 
 
@@ -83,21 +77,26 @@ US_STOCK = {"symbol": "AAPL", "market": "US", "currency": "USD", "handQty": 1}
 HK_STOCK = {"symbol": "00700", "market": "HK", "currency": "HKD", "handQty": 100}   # 港股, 含印花税
 A_STOCK = {"symbol": "600519", "market": "HGT", "currency": "CNY", "handQty": 100}  # 沪港通(A股子市场)
 A_STOCK_SZ = {"symbol": "000001", "market": "SGT", "currency": "CNY", "handQty": 100}
-OTC_STOCK = {"symbol": "OTCM", "market": "US", "currency": "USD", "handQty": 1}     # TODO 换成环境内真实 OTC/粉单标的
+# 待确认: 需替换为环境内真实 OTC / 粉单标的
+OTC_STOCK = {"symbol": "OTCM", "market": "US", "currency": "USD", "handQty": 1}
 
 # 可沽空 / 不可沽空标的(SHT-02 使用)
 SHORTABLE_STOCK = US_STOCK
-NOT_SHORTABLE_STOCK = {"symbol": "TSLA", "market": "US", "currency": "USD", "handQty": 1}  # TODO 换成 availableTag=2 的标的
+# 待确认: 需替换为 availableTag=2 的不可沽空标的
+NOT_SHORTABLE_STOCK = {"symbol": "TSLA", "market": "US", "currency": "USD", "handQty": 1}
 
 # --- 期权 ---
 # 期权代码格式: 标的 + 到期日(YYMMDD) + C/P + 行权价×1000(6位)
-# 例: QQQ 到期 2026-08-19, Call, 行权价 717 -> QQQ260918C717000
-OPTION_SYMBOL = "QQQ260918C717000"    # 单腿期权用例(已验证有行情)
+# 例: QQQ 到期 2026-09-18, Call, 行权价 717 -> QQQ260918C717000
+#
+# 期权到期后代码失效, 会返回 400064「期权代码不存在」, 并导致组合类用例整体失败。
+# 运行前请确认到期日晚于当前日期, 需要更换时可选用 QQQ260918 / QQQ261016 / QQQ261120。
+OPTION_SYMBOL = "QQQ260918C717000"
 OPTION_MARKET = "US"
 OPTION_MULTIPLIER = 100               # 期权乘数
 
-# --- 组合期权策略(每个策略一组腿, 已验证全部 code:0) ---
-# comboStrategy 已确认的枚举值:
+# --- 组合期权策略, 每个策略一组腿 ---
+# comboStrategy 枚举:
 #   VERTICAL_CALL   垂直策略(Call)  买低行权价Call + 卖高行权价Call
 #   VERTICAL_PUT    垂直策略(Put)   买低行权价Put + 卖高行权价Put
 #   STRADDLE        跨式           买Call + 买Put, 同行权价
@@ -164,7 +163,7 @@ COMBO_LEGS_DIFF_UNDERLYING = [
 ]
 # 多腿共享同一标的(QUO-02): 都是 QQQ
 COMBO_LEGS_SAME_UNDERLYING = COMBO_STRATEGIES["牛市价差"]["comboLegs"]
-# 行情缺失的腿(QUO-03): UTL 在 SIT 无行情
+# 行情缺失的腿(QUO-03): UTL 无行情(已到期/不存在的代码同样返回 400064)
 COMBO_LEGS_NO_QUOTE = [
     {"businessType": "O", "entrustSide": "B", "legRatio": 1, "symbol": "QQQ260918C717000"},
     {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "UTL260918C50000"},
@@ -176,86 +175,64 @@ COMBO_LEGS_MULTI_SHORT = [
     {"businessType": "O", "entrustSide": "S", "legRatio": 1, "symbol": "QQQ260918P717000"},
 ]
 
-# --- 已存在的订单 ID(改单类用例需要, 跑之前先下单拿到) ---
-# 注意: 改单接口的账号是由 orderId 推出来的, 所以订单ID 必须属于你想测的那个账号。
+# --- 改单类用例所需的在途订单 ID ---
+# 改单接口的账号由 orderId 推导, 因此订单必须属于目标账号。
 #
-# ★★ 委托属性会直接影响用例结论 ★★
-#   order_api_tests 的下单脚本默认 ENTRUST_PROP="MKT"(市价单, ENTRUST_PRICE="0")。
-#   市价单没有委托价, 接口只能按标的市价算最大可买 —— 此时传任何 entrustPrice 结果都不变,
-#   这是正确行为, 不能当成「入参不生效」的缺陷。
-#   要验证「委托价影响最大可买」, 必须用 ENTRUST_PROP="LMT" 的限价单。
-STOCK_ORDER_ID = 1609761017595428864          # 股票 已验证 code:0 (AAPL 市价单 MKT)
-OPTION_SHORT_ORDER_ID = 1609764032108822528   # 期权沽空 已验证 code:0
-# 组合期权: 待补。之前给的 1609764032108822528 实测是期权沽空单
-# (按组合调返回 450003 参数不合法 error="Source must not be null")。
-COMBO_ORDER_ID = 0                            # TODO 填入 UAT 真正的组合期权在途单
-SHORT_ORDER_ID = 0                            # TODO 填入账号 80019713 的股票沽空在途单
-# 限价单(验证 entrustPrice 敏感性专用), 两类各留一个位置
-STOCK_LIMIT_ORDER_ID = 0                      # TODO 填入股票限价在途单(LMT)
-COMBO_LIMIT_ORDER_ID = 0                      # TODO 填入组合期权限价在途单
+# 委托属性会影响用例结论:
+#   市价单(ENTRUST_PROP=MKT, ENTRUST_PRICE=0)没有委托价, 最大可买按标的市价计算,
+#   此时传入任何 entrustPrice 结果都不变, 属正常行为。
+#   验证委托价敏感性需使用限价单(ENTRUST_PROP=LMT), 见 STOCK_LIMIT_ORDER_ID。
+STOCK_LIMIT_ORDER_ID = 0                      # 待补: 股票限价在途单
+STOCK_ORDER_ID = 1609761017595428864          # 股票在途单(AAPL 市价单)
+OPTION_SHORT_ORDER_ID = 1609764032108822528   # 期权沽空在途单
+COMBO_ORDER_ID = 0                            # 待补: 组合期权在途单
+SHORT_ORDER_ID = 0                            # 待补: 账号 80019713 的股票沽空在途单
 
 
 # ============================ 4. 接口路径 ============================
-# 端点名一律以接口文档(png / png2)为准, 不要自行改名。
+# 端点名以接口文档为准。
 #
-# 实测的两条规律:
-#   1) 文档写的是 /order-center-sg/api/...  —— 这是 APP 网关路由,
-#      在 usmartclient-sit(中台网关)上访问会 HTTP404。
-#      本机要用中台路由 /order-center-sg/admin-api/... , 端点名保持与文档一致。
-#   2) 中台路由不带 order/ 这一段:
-#         文档 /api/order/stock-order-replace-max/v1
-#         中台 /admin-api/stock-order-replace-max/v1     <- 少了 order/
+# 路由差异:
+#   文档给出的 /order-center-sg/api/... 为 APP 网关路由, 在中台网关上访问返回 HTTP 404;
+#   中台对应路由为 /order-center-sg/admin-api/..., 且不含 order/ 这一段, 例如
+#     APP  /api/order/stock-order-replace-max/v1
+#     中台 /admin-api/stock-order-replace-max/v1
+#   中台路由需显式传 fundAccount, APP 路由才按 token 用户取资金账号,
+#   因此 OPS-01「不传资金账号按当前用户」只能在 APP 网关验证。
 #
-# 关于 {"code":110003,"msg":"您无权限,请申请"}:
-#   这是**无权限**的正常业务响应 —— 当前 token/账号没有该接口的调用权限, 不是路径错误。
-#   (注意该码语义偏宽: 请一个不存在的路径也会返回 110003 而不是 404,
-#    所以排查顺序是先核对路径与文档一致, 确认无误后即按无权限处理。)
-#
-#   3) 中台路由必须显式传 fundAccount; api 路由才会按 token 用户取资金账号。
-#      => OPS-01「不传资金账号按当前用户」只能在 APP 网关上验证(见 APP_PATHS)。
+# 返回 110003「您无权限,请申请」表示当前 token 无该接口调用权限, 属正常业务响应。
+# 该码语义偏宽, 访问不存在的路径同样返回 110003 而非 404, 排查时先核对路径与文档一致。
 PATHS = {
-    # ---------- 已实测可用(返回 code:0) ----------
-    # 股票改单最大可改--ok
     "stock_replace_max": "/order-center-sg/admin-api/stock-order-replace-max/v1",
-    # 股票沽空改单最大可改
     "short_replace_max": "/order-center-sg/admin-api/short-order-replace-max/v1",
-    # 期权沽空最大可卖
     "option_short_max": "/order-center-sg/admin-api/short-option-sell-max/v1",
-    # 期权沽空改单最大可卖
     "option_short_replace_max": "/order-center-sg/admin-api/short-option-replace-sell-max/v1",
 
-    # ---------- png2 三个接口(端点名与 png2 文档逐字一致) ----------
-    # 文档原始路径见下方 APP_PATHS(/order-center-sg/api/...), 那是 APP 网关。
-    # 这里用中台前缀 admin-api + 同名端点。
-    # 当前该 token 对这三个接口返回 110003「您无权限,请申请」= 无权限, 属预期响应。
-    # 要在 APP 网关上跑, 填 APP_BASE_URL 并把 USE_APP_GATEWAY 设为 True。
+    # 下列三个接口的 APP 网关路径见 APP_PATHS, 此处为中台同名端点
     "consume_power": "/order-center-sg/admin-api/calculate-consumed-purchasing-power/v1",
-    "order_max": "/order-center-sg/admin-api/stock-order-max-qty-get/v2",       # 新单聚合(v2)
-    "order_replace_max": "/order-center-sg/admin-api/order-replace-max/v2",     # 改单聚合(v2)
+    "order_max": "/order-center-sg/admin-api/stock-order-max-qty-get/v2",
+    "order_replace_max": "/order-center-sg/admin-api/order-replace-max/v2",
     "short_max": "/order-center-sg/admin-api/short-order-max-qty-get/v1",
 
-    # ---------- 接口文档未提供, 需按实际补充 ----------
-    "combo_preview": "",        # TODO 组合下单预览接口路径(3.8)
-    "refresh_user_cache": "",   # TODO 刷新用户信息缓存内部接口路径(RFS-03)
-    "margin_upgrade": "",       # TODO 现金升融资接口路径(RFS-01)
+    # 接口文档未提供, 需按实际补充
+    "combo_preview": "",        # 待补: 组合下单预览接口路径(3.8)
+    "refresh_user_cache": "",   # 待补: 刷新用户信息缓存内部接口路径(RFS-03)
+    "margin_upgrade": "",       # 待补: 现金升融资接口路径(RFS-01)
 }
 
 # ============================ APP 网关 ============================
-# png2 那三个接口挂在 APP 网关(基础地址 + /order-center-sg/api/...)，
-# 不在中台网关 usmartclient-sit 上。已实测这个地址三个接口都能走到服务
-# (返回 107003 Token 不能为空, 说明路由正确, 只差 token)。
+# 三个购买力查询接口挂在 APP 网关, 不在中台网关上。
 APP_BASE_URL = "https://jy-uat.usmartsg.com"
 
-# APP 网关的登录 token(JWT)。与中台 token 不通用。
+# APP 网关的登录 token(JWT), 与中台 token 不通用。
 APP_AUTHORIZATION = AUTHORIZATION
 
-# 这几个接口固定走 APP 网关(其余接口仍走中台 BASE_URL)
+# 下列接口固定走 APP 网关, 其余走中台 BASE_URL
 APP_GATEWAY_KEYS = {"consume_power", "order_max", "order_replace_max"}
 
-# 置 True 则**所有**接口都强制走 APP 网关(一般不需要)
+# 置 True 时所有接口强制走 APP 网关
 USE_APP_GATEWAY = False
 APP_PATHS = {
-    # png2 三个接口的文档原始路径(APP 网关)
     "consume_power": "/order-center-sg/api/calculate-consumed-purchasing-power/v1",
     "order_max": "/order-center-sg/api/order/stock-order-max-qty-get/v2",
     "order_replace_max": "/order-center-sg/api/order/order-replace-max/v2",
@@ -288,41 +265,47 @@ def url_for(path_key: str) -> str:
     return BASE_URL + path
 
 
-# ============================ 4.1 实测错误码 ============================
-# 说明: 服务端返回的是 {"code": 数字, "msg": "中文文案"}，不是 explain.md 里的英文枚举名。
-#      断言时用下面的数字 code 或中文文案，不要用英文枚举名。
+# ============================ 4.1 错误码 ============================
+# 服务端返回 {"code": 数字, "msg": "中文文案"}, 与 explain.md 中的英文枚举名不同。
+# 断言时使用下列数字 code 或中文文案。
 ERROR_CODES = {
-    # 接口无调用权限 —— 当前 token/账号没有该接口权限, 属预期的环境状态。
-    # 注: 该码语义偏宽, 请一个不存在的路径也会返回它(而不是 404),
-    #     所以排查顺序是先核对路径与接口文档一致, 确认无误后按无权限处理。
+    # 接口无调用权限。该码语义偏宽, 访问不存在的路径同样返回它而非 404,
+    # 排查时先核对路径与接口文档一致。
     "NO_API_PERMISSION": (110003, "您无权限,请申请"),
 
-    # 无对应交易权限 —— 对应 explain.md 的 NO_CORRESPONDING_TRADE_PERMISSION(OPS-03)
-    # 实测 10002178 / 80125438 / 80125375 均返回此码, 证实错误码变更已生效。
+    # 无对应交易权限, 对应 explain.md 的 NO_CORRESPONDING_TRADE_PERMISSION(OPS-03)
     "NO_CORRESPONDING_TRADE_PERMISSION": (400505, "无对应交易权限"),
 
-    # 登录状态失效。实测: token 与 fundAccount 不属于同一用户时也会返回这个码，
-    # 不一定是 token 真过期, 先确认账号与 token 是否匹配。
+    # 登录状态失效。token 与 fundAccount 不属于同一用户时同样返回该码,
+    # 需先确认账号与 token 是否匹配。
     "LOGIN_INVALID": (110002, "登录状态已失效"),
 
-    # 资金账号不正确 —— 对应 OPTION_FUND_ACCOUNT_ERROR(OPS-04)
+    # 资金账号不正确, 对应 OPTION_FUND_ACCOUNT_ERROR(OPS-04)
     "OPTION_FUND_ACCOUNT_ERROR": (400092, "资金账号不正确"),
 
-    # 获取用户信息异常 —— 对应 FUND_ACCOUNT_INFO_NONE(CBO-05 / OPS-08)
+    # 获取用户信息异常, 对应 FUND_ACCOUNT_INFO_NONE(CBO-05 / OPS-08)
     "FUND_ACCOUNT_INFO_NONE": (450004, "获取用户信息异常"),
 
-    # 资金账号为空 —— 对应 BASE_CAPITAL_FUNDACCOUNT_ERROR(CBO-06)
+    # 资金账号为空, 对应 BASE_CAPITAL_FUNDACCOUNT_ERROR(CBO-06)
     "FUNDACCOUNT_EMPTY": (None, "资金帐号不能为空"),
 
     # 参数校验失败
     "PARAM_INVALID": (450003, "不能为空"),
 
-    # 行情服务失败 —— 对应 SERVICE_BUSY_ERROR(QUO-04)
-    # TODO 数字 code 未实测(需先制造行情服务失败), 命中中文文案即可
+    # 期权代码不存在, 常见于期权已到期
+    "OPTION_SYMBOL_NOT_EXIST": (400064, "期权代码不存在"),
+
+    # 下游服务不可用
+    "SERVICE_UNAVAILABLE": (100012, "服务繁忙"),
+
+    # 订单信息找不到
+    "ORDER_NOT_FOUND": (100080, "订单信息找不到"),
+
+    # 行情服务失败, 对应 SERVICE_BUSY_ERROR(QUO-04), 数字 code 待补
     "SERVICE_BUSY_ERROR": (None, "服务繁忙"),
 
-    # 真实交易链路: 冻结/异常账户被拦截 —— 对应 BASE_COMMON_FUNDACCOUNT_ERROR(REG-01)
-    # TODO 数字 code 未实测
+    # 真实交易链路中冻结或异常账户被拦截, 对应 BASE_COMMON_FUNDACCOUNT_ERROR(REG-01),
+    # 数字 code 待补
     "BASE_COMMON_FUNDACCOUNT_ERROR": (None, "资金账号"),
 
     # Token 为空
@@ -331,9 +314,9 @@ ERROR_CODES = {
 
 
 # ============================ 5. Redis / MQ 服务信息 ============================
-# ★下面这套地址与密码是 SIT 的, UAT 是独立部署的另一套, 需要替换后才能跑
-#  缓存(CACHE-01~08)与缓存刷新(RFS-01~06)章节。
-# Redis 集群(用户信息缓存所在, 3.5 / 3.6 使用)
+# 下列地址与密码取自 SIT, UAT 为独立部署的另一套, 需替换后才能执行
+# 缓存(CACHE-01~08)与缓存刷新(RFS-01~06)章节。
+# Redis 集群, 用户信息缓存所在(3.5 / 3.6 章节使用)
 REDIS_NODES = [
     ("10.60.6.164", 6383),
     ("10.60.6.165", 6384),
@@ -346,11 +329,11 @@ REDIS_PASSWORD = "xpMj4KymXLe5"
 REDIS_DATABASE = 0
 REDIS_TIMEOUT = 60
 
-# 用户信息缓存 key 关键字(实际 key 前缀以代码为准，这里用于模糊扫描)
-CACHE_KEY_KEYWORDS = ["userInfo", "user_info", "fundAccount"]  # TODO 按实际 key 前缀调整
+# 用户信息缓存 key 关键字, 用于模糊扫描, 实际前缀以服务端代码为准
+CACHE_KEY_KEYWORDS = ["userInfo", "user_info", "fundAccount"]
 CACHE_EXPECT_TTL_HOURS = 8   # 预期缓存时长 8 小时
 
-# RabbitMQ(开户/资金账号变更消息, RFS-02 使用)
+# RabbitMQ, 开户与资金账号变更消息(RFS-02 使用)
 MQ_ADDRESSES = [
     ("10.60.6.191", 5774),
     ("10.60.6.192", 5774),
@@ -358,10 +341,10 @@ MQ_ADDRESSES = [
 ]
 MQ_USERNAME = "jy_sg_user"
 MQ_PASSWORD = "jy_sg_user"
-MQ_EXCHANGE = ""      # TODO 开通资金账号消息的 exchange
-MQ_ROUTING_KEY = ""   # TODO 开通资金账号消息的 routing key
+MQ_EXCHANGE = ""      # 待补: 开通资金账号消息的 exchange
+MQ_ROUTING_KEY = ""   # 待补: 开通资金账号消息的 routing key
 
 
 # ============================ 基线目录 ============================
-# 取数一致性验证: 优化前的响应保存在这里，优化后逐字段比对
+# 取数一致性验证: 优化前的响应保存在此目录, 优化后逐字段比对
 BASELINE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "baseline")
