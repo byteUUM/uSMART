@@ -34,3 +34,6 @@ htmlcov/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Database credentials (含明文密码, 禁止入库)
+avs_option/hk_avs_uat/common/db.py
