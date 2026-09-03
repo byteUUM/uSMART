@@ -18,7 +18,7 @@ _ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
 sys.path.insert(0, _ROOT)
 from db import query, use_env
 
-use_env("HK_UAT")
+use_env("HK_SIT")
 
 # ============================ 统一配置: 改这里 ============================
 ORDER_ID = 1146772338964967424

@@ -30,8 +30,8 @@ UAT 实测要点:
     非盘前时段送 1 或 10 会被 801116 "当前时段不支持盘前期权交易" 拦下,
     这是时间窗口限制, 不是参数错误, 要在盘前时段跑。
   - side=2(卖出)需要该标的有持仓, 否则 830015 提示改走沽空。
-  - businessType=OS(沽空)要用有期权沽空权限的账号 S77001164;
-    用默认账号 77001164 会报 810006 "请先开户"。
+  - businessType=OS(沽空)当前账号 77001164 报 810006 "请先开户",
+    需要换有期权沽空权限的 HK 账号。
   - requestId 每次必须是新的 UUID(脚本自动生成)。
   - 改单/撤单请求体里没有 capitalAccount, 只认 orderId, 且 orderId 是 int64,
     要按数字传(传字符串服务端反序列化会失败)。
@@ -48,12 +48,12 @@ from common.config import (
     BUSINESS_TYPE_OPTION,
     BUSINESS_TYPE_OPTION_SHORT,
     CAPITAL_ACCOUNT,
+    SHORT_CAPITAL_ACCOUNT,
     ENTRUST_TYPE_NORMAL,
     ORDER_TYPE_LIMIT,
     SESSION_TYPE_PRE_AND_REGULAR,
     SESSION_TYPE_PRE_MARKET,
     SESSION_TYPE_REGULAR,
-    SHORT_CAPITAL_ACCOUNT,
     SIDE_BUY,
     SIDE_SELL,
     url_for,
@@ -67,9 +67,6 @@ ORDER_TYPE = ORDER_TYPE_LIMIT    # 2-限价(盘前只支持限价)
 ENTRUST_TYPE = ENTRUST_TYPE_NORMAL
 SESSION_TYPE = SESSION_TYPE_REGULAR   # 默认盘中; 盘前测试改成 SESSION_TYPE_PRE_MARKET
 TRANSACTION_PASSAGE = None       # 不传由服务端按持仓/在途/全局设置选通道; AVS 场景可传 "AVS"
-
-# 期权沽空(businessType=OS)专用资金账号, 与默认账号不同
-SHORT_CAPITAL_ACCOUNT = "S77001164"
 
 
 # ============================ 请求体构造 ============================
@@ -142,7 +139,6 @@ def create_option_short(**kw):
 
     标的限制: 部分标的不支持裸卖看涨, 报 801113
       "该股票的期权支持备兑看涨期权(Covered Call)策略, 但不支持裸卖看涨期权开仓"
-    实测可沽空: NVDA281215C190000 / QQQ261016C490000
     """
     return send_order("HK期权沽空下单(OS)", url_for("option_create"),
                       build_option_body(side=SIDE_SELL,
@@ -255,9 +251,9 @@ def buy_then_replace_then_cancel(price=PRICE, qty=QTY,
 
 
 if __name__ == "__main__":
-    # create_option_buy()
+    create_option_buy()
     # create_option_sell()
-    create_option_short()                  # 需沽空权限账号
+    # create_option_short()                  # 需沽空权限账号
     # create_option_buy_pre_market()         # 盘前时段跑
     # create_option_buy_pre_and_regular()    # 盘前时段跑
     # replace_option(1146771310882336768, price=1.8, qty=2)
