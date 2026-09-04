@@ -23,7 +23,12 @@ from datetime import datetime, timedelta
 import requests
 
 # ============================ 配置 ============================
-KIBANA_BASE = "http://10.60.6.68:5601"
+# 注意: SIT 与 UAT 是两套独立的 Kibana, 地址不同!
+KIBANA_HOSTS = {
+    "SIT": "http://10.60.6.68:5601",
+    "UAT": "http://10.60.6.69:5601",
+}
+KIBANA_BASE = KIBANA_HOSTS["SIT"]        # 默认 SIT(本目录)
 SEARCH_PATH = "/elasticsearch/_msearch?rest_total_hits_as_int=true&ignore_throttled=true"
 KBN_VERSION = "7.1.0"
 
@@ -46,6 +51,14 @@ HEADERS = {
 def _to_utc_str(bj_dt):
     """北京时间 datetime -> ES 需要的 UTC ISO 字符串"""
     return (bj_dt - BJ_TO_UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+def _base_for(index):
+    """按索引名自动选对应环境的 Kibana 地址(SIT/UAT 是两套独立服务)"""
+    idx = (index or "").lower()
+    if "uat" in idx:
+        return KIBANA_HOSTS["UAT"]
+    return KIBANA_HOSTS["SIT"]
 
 
 def search(keyword, index=INDEX_SIT, start=None, end=None, size=500, order="asc"):
@@ -91,7 +104,11 @@ def search(keyword, index=INDEX_SIT, start=None, end=None, size=500, order="asc"
     payload = json.dumps(header, ensure_ascii=False) + "\n" + \
               json.dumps(body, ensure_ascii=False) + "\n"
 
-    resp = requests.post(KIBANA_BASE + SEARCH_PATH, headers=HEADERS,
+    base = _base_for(index)
+    hd = dict(HEADERS)
+    hd["Origin"] = base
+    hd["Referer"] = base + "/app/kibana"
+    resp = requests.post(base + SEARCH_PATH, headers=hd,
                          data=payload.encode("utf-8"), timeout=60)
     resp.raise_for_status()
     data = resp.json()
