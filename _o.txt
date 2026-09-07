@@ -1,0 +1,17 @@
+﻿璁㈠崟鍙?    : 1149380432019238912
+鏍囩殑       : AAPL260909C325000 | session_type= 1 | business_type= O | side= 1
+濮旀墭       : 10.00000000 寮?@ 1.89000000
+鐘舵€?      : 830 (鎾ゅ崟)  before=300
+鎴愪氦       : qty=0E-8 amount=0E-8
+鍐荤粨/璐圭敤  : frozen=0.00 棰勪及璐?32.14 瀹炴敹=0.00
+寮哄埗鎾ゅ崟   : 1
+鎷掔粷/澶辫触  : rej_reason=None rej_txt=None fail=None
+璐﹀彿/閫氶亾  : 77000851 / passage=3
+浜ゆ槗鏃?    : trade_date=2026-09-08 settle_date=2026-09-09
+鏃堕棿       : 寤?2026-09-07 16:27:30  鏇?2026-09-07 17:56:44
+
+--- 鎿嶄綔娴佹按 option_order_operation ---
+   type=1 O status=5 origStatus=-1 targetQty=None targetPx=None frozen=0.00 | 2026-09-07 16:28:13
+
+--- 鎴愪氦娴佹按 option_order_clinch ---
+   0 鏉?
