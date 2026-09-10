@@ -1,0 +1,6 @@
+# 登录态（含 CAS 会话 cookie，敏感，禁止入库）
+auth_state.json
+
+# 运行产物
+screenshots/
+__pycache__/
