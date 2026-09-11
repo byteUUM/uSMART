@@ -17,6 +17,35 @@ class ClientHomePage:
 
     def __init__(self, page: Page):
         self.page = page
+        # 缓存最近一次列表接口(today/history)的返回 data，用于接口<->页面<->DB 比对
+        self._last_list_data = None
+        self._last_list_body = None
+        self._install_response_listener()
+
+    # ---------------------------- 接口抓取 ----------------------------
+    def _install_response_listener(self):
+        def on_response(resp):
+            try:
+                url = resp.url
+                if "list-homepage-today-order" in url or "list-homepage-history-order" in url:
+                    self._last_list_data = resp.json().get("data", {})
+                    self._last_list_body = resp.request.post_data
+            except Exception:
+                pass
+        self.page.on("response", on_response)
+
+    def get_last_list_data(self) -> dict:
+        """返回最近一次列表接口的 data（含 total/pageNum/pageSize/list）。"""
+        return self._last_list_data or {}
+
+    def get_last_list_body(self) -> str:
+        """返回最近一次列表接口的请求体 JSON 字符串（用于校验查询入参）。"""
+        return self._last_list_body or ""
+
+    def clear_last_list(self):
+        """清空缓存，便于确认某次操作确实触发了新接口。"""
+        self._last_list_data = None
+        self._last_list_body = None
 
     # ---------------------------- 打开与登录态 ----------------------------
     def open(self):
@@ -192,16 +221,8 @@ class ClientHomePage:
         )
 
     def get_visible_row_count(self) -> int:
-        """读取当前页表格数据行数（排除「暂无数据」占位行）。"""
-        return self.page.evaluate(
-            """() => {
-                const rows = [...document.querySelectorAll('.el-table__body tbody tr')]
-                  .filter(tr => tr.offsetParent !== null);
-                // 过滤掉「暂无数据」的空占位
-                const real = rows.filter(tr => !/暂无数据/.test(tr.innerText || ''));
-                return real.length;
-            }"""
-        )
+        """读取当前页表格数据行数（去重 + 排除占位行），复用 get_table_matrix。"""
+        return len(self.get_table_matrix())
 
     def get_stat_total(self) -> int:
         """读取「当前查询条件下有 N 笔」里的 N；取不到返回 -1。"""
@@ -220,6 +241,161 @@ class ClientHomePage:
         text = self.page.inner_text("body")
         m = re.search(r"(\d+)\s*条/页", text)
         return int(m.group(1)) if m else -1
+
+    def get_table_matrix(self) -> list:
+        """
+        读取当前表格所有行、所有列的渲染文本，返回 list[list[str]]（行 x 列）。
+        处理两个坑：
+          1. Element UI 每条数据可能渲染成 2 个 tr（展开行机制），用 el-table row-key 去重；
+             这里改为只取 body-wrapper 内、且是「主行」(含数据 td) 的 tr，并按行内容去重。
+          2. 部分表首列是展开图标空 cell，导致 cell 数比表头多 1，交给 get_row_dicts 处理。
+        """
+        return self.page.evaluate(
+            """() => {
+                // 只取主体 body-wrapper（排除 fixed 副本），可见且非空占位
+                const wrap = [...document.querySelectorAll('.el-table__body-wrapper')]
+                    .filter(w => w.offsetParent !== null)[0];
+                if (!wrap) return [];
+                const trs = [...wrap.querySelectorAll('tbody > tr')]
+                    .filter(tr => !/暂无数据/.test(tr.innerText || ''));
+                // 去重：Element 展开行会产生重复 tr，按整行文本去重
+                const seen = new Set();
+                const out = [];
+                for (const tr of trs) {
+                    const cells = [...tr.querySelectorAll('td .cell')].map(c => c.innerText.trim());
+                    if (cells.length === 0) continue;
+                    const key = cells.join('||');
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+                    out.push(cells);
+                }
+                return out;
+            }"""
+        )
+
+    def get_row_dicts(self) -> list:
+        """
+        把当前表格读成 list[dict]（列名 -> 值）。
+        若某行 cell 数比表头多 1 且首格为空（展开图标列），去掉该前导空格再对齐。
+        """
+        headers = self.get_table_headers()
+        matrix = self.get_table_matrix()
+        result = []
+        for row in matrix:
+            cells = row
+            # 处理前导展开图标空 cell 造成的错位
+            if len(cells) == len(headers) + 1 and cells and cells[0] == "":
+                cells = cells[1:]
+            d = {}
+            for i, h in enumerate(headers):
+                d[h] = cells[i] if i < len(cells) else ""
+            result.append(d)
+        return result
+
+    # ---------------------------- 查询操作 ----------------------------
+    def fill_search_input(self, label: str, value: str):
+        """
+        在搜索区某个「文本输入」条件里填值。
+        经实测：期权搜索区可见的 placeholder='请输入' 文本框有两个，
+        顺序为 [底层证券代码, 证券代码]，用下面的索引映射精确定位。
+        用 Playwright fill 触发正确的输入事件（保证被 Vue v-model 捕获）。
+        返回是否成功填入。
+        """
+        index_map = {
+            "底层证券代码": 0,
+            "证券代码": 1,
+        }
+        idx = index_map.get(label)
+        boxes = self.page.locator("input[placeholder='请输入']:visible")
+        if idx is None or idx >= boxes.count():
+            return False
+        target = boxes.nth(idx)
+        target.fill(value)
+        self.page.wait_for_timeout(300)
+        return True
+
+    def select_dropdown(self, label: str, option_text: str):
+        """
+        在搜索区某个 el-select 下拉里选择指定文本的选项。label 如「买卖方向」。
+        """
+        # 点开该 label 对应的 select
+        opened = self.page.evaluate(
+            """(label) => {
+                const items = [...document.querySelectorAll('.el-form-item')];
+                for (const it of items) {
+                    const lab = it.querySelector('.el-form-item__label');
+                    if (lab && lab.innerText.includes(label)) {
+                        const inp = it.querySelector('.el-select input, input');
+                        if (inp) { inp.click(); return true; }
+                    }
+                }
+                return false;
+            }""",
+            label,
+        )
+        self.page.wait_for_timeout(600)
+        # 从弹出的下拉里点选项（取可见的最后一个下拉面板）
+        opt = self.page.locator(".el-select-dropdown:visible .el-select-dropdown__item", has_text=option_text)
+        if opt.count() > 0:
+            opt.first.click()
+        self.page.wait_for_timeout(300)
+        return opened
+
+    def click_search(self):
+        """点击搜索区的搜索按钮并等待列表接口刷新。"""
+        self.clear_last_list()
+        # 加 :visible 只命中当前激活 tab 里那个按钮（DOM 中存在多套隐藏表单）
+        self.page.locator("button.el-button--small:has-text('搜索'):visible").first.click()
+        self._wait_list_response()
+
+    def click_reset(self):
+        """点击搜索区的重置按钮（只点当前激活 tab 里可见的那个）。"""
+        self.clear_last_list()
+        self.page.locator("button.el-button--small:has-text('重置'):visible").first.click()
+        self.page.wait_for_timeout(2000)
+
+    def _wait_list_response(self, timeout_ms=8000):
+        """轮询等待列表接口返回被缓存。"""
+        waited = 0
+        step = 400
+        while waited < timeout_ms:
+            self.page.wait_for_timeout(step)
+            waited += step
+            if self._last_list_data is not None:
+                return True
+        return False
+
+    def set_page_size(self, size: int):
+        """切换每页条数（10/20/50/100）。返回是否触发了接口。"""
+        self.clear_last_list()
+        self.page.locator(".el-pagination:visible .el-select input").first.click()
+        self.page.wait_for_timeout(500)
+        self.page.locator(".el-select-dropdown:visible .el-select-dropdown__item",
+                          has_text=f"{size}条/页").first.click()
+        return self._wait_list_response()
+
+    def go_to_next_page(self):
+        """点击分页下一页。返回是否触发了接口。"""
+        self.clear_last_list()
+        self.page.locator(".el-pagination:visible .btn-next").first.click()
+        return self._wait_list_response()
+
+    def get_current_page_num(self) -> int:
+        """读取分页当前激活页码。"""
+        return self.page.evaluate(
+            """() => {
+                const pgs = [...document.querySelectorAll('.el-pagination')].filter(p => p.offsetParent !== null);
+                for (const p of pgs) {
+                    const active = p.querySelector('.el-pager .number.active');
+                    if (active) return parseInt(active.innerText);
+                }
+                return -1;
+            }"""
+        )
+
+    def has_export_button(self) -> bool:
+        """当前激活 tab 是否存在可见的「导出」按钮。"""
+        return self.page.locator("button.el-button--small:has-text('导出'):visible").count() > 0
 
     def screenshot(self, name: str):
         """保存截图到 screenshots 目录。"""
